@@ -8,7 +8,7 @@ The project provides a complete shopping experience including product discovery,
 
 ## 🚀 Live Demo
 
-[View Live Demo](https://benevolent-otter-f00561.netlify.app/)
+[View Live Demo](https://vercel.com/team-5369/frontend-task-1-q7eg/8MFuhVZFiAPmgGnxWGWNgax8Ponk)
 
 ## 📦 GitHub Repository
 
