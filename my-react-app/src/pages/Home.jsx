@@ -2,38 +2,239 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
 
+const HOME_PRODUCTS_CACHE = "supermart_home_products";
+const HOME_PRODUCTS_CACHE_TIME = "supermart_home_products_time";
+
+// Fallback products used when DummyJSON is temporarily unavailable
+const fallbackProducts = [
+  {
+    id: 1,
+    title: "Essence Mascara Lash Princess",
+    price: 9.99,
+    rating: 4.94,
+    stock: 99,
+    brand: "Essence",
+    category: "beauty",
+    discountPercentage: 7.17,
+    thumbnail:
+      "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
+  },
+  {
+    id: 2,
+    title: "Eyeshadow Palette with Mirror",
+    price: 19.99,
+    rating: 3.28,
+    stock: 44,
+    brand: "Glamour Beauty",
+    category: "beauty",
+    discountPercentage: 5.5,
+    thumbnail:
+      "https://cdn.dummyjson.com/product-images/beauty/eyeshadow-palette-with-mirror/thumbnail.webp",
+  },
+  {
+    id: 3,
+    title: "Powder Canister",
+    price: 14.99,
+    rating: 4.64,
+    stock: 59,
+    brand: "Velvet Touch",
+    category: "beauty",
+    discountPercentage: 13.58,
+    thumbnail:
+      "https://cdn.dummyjson.com/product-images/beauty/powder-canister/thumbnail.webp",
+  },
+  {
+    id: 4,
+    title: "Red Lipstick",
+    price: 12.99,
+    rating: 4.36,
+    stock: 91,
+    brand: "Chic Cosmetics",
+    category: "beauty",
+    discountPercentage: 8.4,
+    thumbnail:
+      "https://cdn.dummyjson.com/product-images/beauty/red-lipstick/thumbnail.webp",
+  },
+  {
+    id: 5,
+    title: "Red Nail Polish",
+    price: 8.99,
+    rating: 4.32,
+    stock: 71,
+    brand: "Nail Couture",
+    category: "beauty",
+    discountPercentage: 6.12,
+    thumbnail:
+      "https://cdn.dummyjson.com/product-images/beauty/red-nail-polish/thumbnail.webp",
+  },
+  {
+    id: 6,
+    title: "Calvin Klein CK One",
+    price: 49.99,
+    rating: 4.37,
+    stock: 17,
+    brand: "Calvin Klein",
+    category: "fragrances",
+    discountPercentage: 10.5,
+    thumbnail:
+      "https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/thumbnail.webp",
+  },
+  {
+    id: 7,
+    title: "Chanel Coco Noir Eau De",
+    price: 129.99,
+    rating: 4.26,
+    stock: 41,
+    brand: "Chanel",
+    category: "fragrances",
+    discountPercentage: 14.7,
+    thumbnail:
+      "https://cdn.dummyjson.com/product-images/fragrances/chanel-coco-noir-eau-de/thumbnail.webp",
+  },
+  {
+    id: 8,
+    title: "Dior J'adore",
+    price: 89.99,
+    rating: 4.31,
+    stock: 34,
+    brand: "Dior",
+    category: "fragrances",
+    discountPercentage: 15.2,
+    thumbnail:
+      "https://cdn.dummyjson.com/product-images/fragrances/dior-j'adore/thumbnail.webp",
+  },
+];
+
 function Home() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ , setUsingFallback] = useState(false);
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    let cancelled = false;
+
+    const loadProducts = async () => {
       try {
+        // -----------------------------------------
+        // 1. Check local cache first
+        // -----------------------------------------
+        const cachedProducts = localStorage.getItem(
+          HOME_PRODUCTS_CACHE
+        );
+
+        const cachedTime = localStorage.getItem(
+          HOME_PRODUCTS_CACHE_TIME
+        );
+
+        const cacheAge = cachedTime
+          ? Date.now() - Number(cachedTime)
+          : Infinity;
+
+        if (
+          cachedProducts &&
+          cacheAge < 10 * 60 * 1000
+        ) {
+          try {
+            const parsedProducts = JSON.parse(cachedProducts);
+
+            if (!cancelled && Array.isArray(parsedProducts)) {
+              setProducts(parsedProducts);
+              setLoading(false);
+              return;
+            }
+          } catch {
+            localStorage.removeItem(HOME_PRODUCTS_CACHE);
+            localStorage.removeItem(
+              HOME_PRODUCTS_CACHE_TIME
+            );
+          }
+        }
+
+        // -----------------------------------------
+        // 2. Try API
+        // -----------------------------------------
         const response = await fetch(
-          "https://dummyjson.com/products?limit=100"
+          "/api/products?limit=20"
         );
 
         if (!response.ok) {
-          throw new Error("Failed to fetch products");
+          throw new Error(`API_ERROR_${response.status}`);
         }
 
         const data = await response.json();
-        setProducts(data.products);
-      } catch (error) {
-        console.error("Failed to load home products:", error);
+
+        if (
+          !data.products ||
+          !Array.isArray(data.products)
+        ) {
+          throw new Error("INVALID_API_RESPONSE");
+        }
+
+        if (!cancelled) {
+          setProducts(data.products);
+          setUsingFallback(false);
+
+          // Save successful response
+          localStorage.setItem(
+            HOME_PRODUCTS_CACHE,
+            JSON.stringify(data.products)
+          );
+
+          localStorage.setItem(
+            HOME_PRODUCTS_CACHE_TIME,
+            Date.now().toString()
+          );
+        }
+      } catch {
+        // -----------------------------------------
+        // 3. Try old cache
+        // -----------------------------------------
+        const oldCache = localStorage.getItem(
+          HOME_PRODUCTS_CACHE
+        );
+
+        if (oldCache && !cancelled) {
+          try {
+            const parsedProducts = JSON.parse(oldCache);
+
+            if (Array.isArray(parsedProducts)) {
+              setProducts(parsedProducts);
+              setUsingFallback(false);
+            } else {
+              setProducts(fallbackProducts);
+              setUsingFallback(true);
+            }
+          } catch {
+            setProducts(fallbackProducts);
+            setUsingFallback(true);
+          }
+        } else if (!cancelled) {
+          // -----------------------------------------
+          // 4. Final fallback
+          // -----------------------------------------
+          setProducts(fallbackProducts);
+          setUsingFallback(true);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchProducts();
-  }, []);
+    loadProducts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setUsingFallback]);
 
   // Flash sale products
   const flashSaleProducts = [...products]
     .sort(
       (a, b) =>
-        b.discountPercentage - a.discountPercentage
+        (b.discountPercentage || 0) -
+        (a.discountPercentage || 0)
     )
     .slice(0, 4);
 
@@ -42,7 +243,9 @@ function Home() {
 
   // Categories
   const categories = [
-    ...new Set(products.map((product) => product.category)),
+    ...new Set(
+      products.map((product) => product.category)
+    ),
   ].slice(0, 8);
 
   // Brands
@@ -74,8 +277,8 @@ function Home() {
             </h1>
 
             <p className="mt-5 max-w-xl text-lg leading-8 text-gray-300">
-              Discover amazing products, exclusive deals, and
-              everyday essentials at great prices.
+              Discover amazing products, exclusive deals,
+              and everyday essentials at great prices.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
@@ -122,7 +325,6 @@ function Home() {
 
       {/* ================= FLASH SALE ================= */}
       <section className="mx-auto max-w-7xl px-4 py-12">
-
         <div className="mb-6 flex items-end justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-red-500">
@@ -161,12 +363,10 @@ function Home() {
             ))}
           </div>
         )}
-
       </section>
 
       {/* ================= CATEGORIES ================= */}
       <section className="bg-white py-12">
-
         <div className="mx-auto max-w-7xl px-4">
 
           <div className="mb-8 text-center">
@@ -184,11 +384,12 @@ function Home() {
           </div>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-
             {categories.map((category) => (
               <Link
                 key={category}
-                to={`/products?category=${encodeURIComponent(category)}`}
+                to={`/products?category=${encodeURIComponent(
+                  category
+                )}`}
                 className="group rounded-2xl border border-gray-200 bg-gray-50 p-6 text-center transition hover:-translate-y-1 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
               >
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl shadow-sm transition group-hover:scale-110">
@@ -204,10 +405,9 @@ function Home() {
                 </p>
               </Link>
             ))}
-
           </div>
-        </div>
 
+        </div>
       </section>
 
       {/* ================= TRENDING PRODUCTS ================= */}
@@ -256,7 +456,6 @@ function Home() {
 
       {/* ================= BRAND STRIP ================= */}
       <section className="border-y border-gray-200 bg-white py-10">
-
         <div className="mx-auto max-w-7xl px-4">
 
           <h2 className="mb-6 text-center text-xl font-bold text-gray-900">
@@ -273,31 +472,13 @@ function Home() {
                 {brand}
               </Link>
             ))}
-
-            {brands.length === 0 && (
-              <>
-                <span className="rounded-xl border border-gray-200 px-6 py-3 text-sm font-semibold text-gray-600">
-                  Popular Brands
-                </span>
-
-                <span className="rounded-xl border border-gray-200 px-6 py-3 text-sm font-semibold text-gray-600">
-                  Best Sellers
-                </span>
-
-                <span className="rounded-xl border border-gray-200 px-6 py-3 text-sm font-semibold text-gray-600">
-                  Featured
-                </span>
-              </>
-            )}
           </div>
 
         </div>
-
       </section>
 
       {/* ================= NEWSLETTER ================= */}
       <section className="bg-gray-900 px-4 py-16">
-
         <div className="mx-auto max-w-3xl text-center">
 
           <p className="text-sm font-semibold uppercase tracking-widest text-blue-400">
@@ -324,6 +505,7 @@ function Home() {
               type="email"
               required
               placeholder="Enter your email address"
+              aria-label="Email address"
               className="flex-1 rounded-xl border border-gray-700 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-500"
             />
 
@@ -336,7 +518,6 @@ function Home() {
           </form>
 
         </div>
-
       </section>
 
     </div>

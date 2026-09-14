@@ -1,21 +1,26 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState } from "react";
-
-const WishlistContext = createContext();
+const WishlistContext = createContext(null);
 
 export function WishlistProvider({ children }) {
   const [wishlist, setWishlist] = useState(() => {
-    const savedWishlist = localStorage.getItem("wishlist");
+    try {
+      const savedWishlist = localStorage.getItem("wishlist");
 
-    return savedWishlist
-      ? JSON.parse(savedWishlist)
-      : [];
+      if (!savedWishlist) {
+        return [];
+      }
+
+      const parsedWishlist = JSON.parse(savedWishlist);
+
+      return Array.isArray(parsedWishlist) ? parsedWishlist : [];
+    } catch {
+      return [];
+    }
   });
 
   useEffect(() => {
-    localStorage.setItem(
-      "wishlist",
-      JSON.stringify(wishlist)
-    );
+    localStorage.setItem("wishlist", JSON.stringify(wishlist));
   }, [wishlist]);
 
   const addToWishlist = (product) => {
@@ -34,24 +39,28 @@ export function WishlistProvider({ children }) {
 
   const removeFromWishlist = (productId) => {
     setWishlist((currentWishlist) =>
-      currentWishlist.filter(
-        (item) => item.id !== productId
-      )
+      currentWishlist.filter((item) => item.id !== productId)
     );
   };
 
   const isInWishlist = (productId) => {
-    return wishlist.some(
-      (item) => item.id === productId
-    );
+    return wishlist.some((item) => item.id === productId);
   };
 
   const toggleWishlist = (product) => {
-    if (isInWishlist(product.id)) {
-      removeFromWishlist(product.id);
-    } else {
-      addToWishlist(product);
-    }
+    setWishlist((currentWishlist) => {
+      const alreadyExists = currentWishlist.some(
+        (item) => item.id === product.id
+      );
+
+      if (alreadyExists) {
+        return currentWishlist.filter(
+          (item) => item.id !== product.id
+        );
+      }
+
+      return [...currentWishlist, product];
+    });
   };
 
   return (

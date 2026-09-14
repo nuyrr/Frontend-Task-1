@@ -1,18 +1,25 @@
-export async function getProducts() {
-  const response = await fetch(
-    "https://dummyjson.com/products"
-  );
+const API_BASE = import.meta.env.DEV
+  ? "/api"
+  : "https://dummyjson.com";
+
+export async function getProducts(limit = 100) {
+  const response = await fetch(`${API_BASE}/products?limit=${limit}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch products");
+  }
 
   const data = await response.json();
 
-  return data.products;
+  return data.products || [];
 }
+
 export async function getProductById(id) {
-  const response = await fetch(
-    `https://dummyjson.com/products/${id}`
-  );
+  const response = await fetch(`${API_BASE}/products/${id}`);
 
-  const data = await response.json();
+  if (!response.ok) {
+    throw new Error("Failed to fetch product");
+  }
 
-  return data;
+  return await response.json();
 }
